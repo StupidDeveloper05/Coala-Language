@@ -55,7 +55,6 @@ Error Tokenizer::process()
 		while (std::getline(ss, str, L' ')) {
 			if (str.empty())
 				continue;
-			// TODO: str 값에 대해 토큰을 정의 중간에 없는 토큰이 나오면 false 리턴
 			auto e = tokenizer(str, token_list_idx, nline);
 			if (e.error_t != ErrorType::NoError)
 				return e;

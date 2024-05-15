@@ -1,5 +1,6 @@
 #include "Program.h"
 #include <iostream>
+#include <sstream>
 
 Error NoError() { return Error(ErrorType::NoError, -1); }
 
@@ -22,12 +23,10 @@ Program::Program(const std::wstring& fname)
 			break;
 		case ErrorType::InvalidStringFormat:
 			std::cout << "SyntaxError: Invalid String Format, line:" << e.line_no;
-			break;
-		case ErrorType::NotDefined:
-			std::cout << "SyntaxError: Invalid Variable Name, line:" << e.line_no;
+			break;		
 		default:
 			m_successed = true;
-			m_tokenizer.show();
+			//m_tokenizer.show();
 			break;
 		}
 	}
@@ -48,7 +47,7 @@ Error Program::parsing()
 		m_currentLine = list;
 		m_currentToken = m_currentLine[m_idx];
 		Error e = statement();
-		if (e.error_t != ErrorType::NoError)
+		if (isError(e))
 			return e;
 	}
 	return Error(ErrorType::NoError, -1);
@@ -68,6 +67,7 @@ Error Program::statement()
 	switch (m_currentToken.t_type) 
 	{
 	case TokenType::VAR:
+	{
 		varIdx = m_currentToken.value;
 
 		m_currentToken = nextToken();
@@ -78,12 +78,27 @@ Error Program::statement()
 		Error e = expression();
 		if (isError(e))
 			return e;
-		
 		variables[varIdx] = pop();
+	}
+		break;
+	case TokenType::FUNCTION:
+	{
+		std::vector<Literal> params;
+		m_parameterStack.push(params);
+		Error e = processFunction();
+		if (isError(e))
+			return e;
+		if (m_currentToken.t_type != TokenType::RPAREN)
+			return Error(ErrorType::ParenError, line);
+		m_currentToken = nextToken();
+		m_parameterStack.pop();
+	}
 		break;
 	}
 	if (m_currentToken.t_type != TokenType::EOL)
 		return Error(ErrorType::OperationError, line);
+	while (!m_stack.empty())
+		pop();
 	return NoError();
 }
 
@@ -142,6 +157,18 @@ Error Program::factor()
 			return e;
 		if (m_currentToken.t_type != TokenType::RPAREN)
 			return Error(ErrorType::ParenError, line);
+	}
+		break;
+	case TokenType::FUNCTION:
+	{
+		std::vector<Literal> params;
+		m_parameterStack.push(params);
+		Error e = processFunction();
+		if (isError(e))
+			return e;
+		if (m_currentToken.t_type != TokenType::RPAREN)
+			return Error(ErrorType::ParenError, line);
+		m_parameterStack.pop();
 	}
 		break;
 	default:
@@ -214,26 +241,153 @@ Error Program::operate(TokenType op)
 	return NoError();
 }
 
+Error Program::processFunction()
+{
+	auto fname = m_currentToken.str;
+	m_currentToken = nextToken();
+	if (m_currentToken.t_type != TokenType::LPAREN)
+		return Error(ErrorType::ParenError, line);
+
+	if (fname == L"호줔ㅋ") // print
+	{
+		Error e = getParameter(-1);
+		if (isError(e))
+			return e;
+
+		// 출력
+		for (auto& liter : m_parameterStack.top()) {
+			if (liter.lt == LiteralType::NUMBER)
+				std::cout << liter.number;
+			else if (liter.lt == LiteralType::STRING)
+				std::wcout << liter.str;
+			else
+				std::cout << "None";
+		}
+		std::cout << "\n";
+		m_stack.push(Literal(LiteralType::VOID, -1));
+	}
+	else if (fname == L"유칼립퉄ㅋㅋ") // input
+	{
+		Error e = getParameter(1);
+		if (isError(e))
+			return e;
+		if (m_parameterStack.top().begin()->lt != LiteralType::STRING)
+			return Error(ErrorType::ParameterError, line);
+		else
+		{
+			std::wstring result;
+			std::wcout << m_parameterStack.top().begin()->str;
+			std::wcin >> result;
+			m_stack.push(Literal(LiteralType::STRING, result));
+		}
+	}
+	else if (fname == L"라알?") // int
+	{
+		Error e = getParameter(1);
+		if (isError(e))
+			return e;
+		if (m_parameterStack.top().begin()->lt != LiteralType::STRING)
+			return Error(ErrorType::ParameterError, line);
+		else
+		{
+			std::wstringstream ssInt(m_parameterStack.top().begin()->str);
+			int i;
+			ssInt >> i;
+			if (ssInt.fail())
+				return Error(ErrorType::ToIntTypeError, line);
+			m_stack.push(Literal(LiteralType::NUMBER, i));
+		}
+	}
+	else if (fname == L"콜라ㅋ?") // str
+	{
+		Error e = getParameter(1);
+		if (isError(e))
+			return e;
+		switch (m_parameterStack.top().begin()->lt)
+		{
+		case LiteralType::NUMBER:
+			m_stack.push(Literal(LiteralType::STRING, std::to_wstring(m_parameterStack.top().begin()->number)));
+			break;
+		case LiteralType::STRING:
+			m_stack.push(Literal(LiteralType::STRING, m_parameterStack.top().begin()->str));
+			break;
+		case LiteralType::VOID:
+			m_stack.push(Literal(LiteralType::STRING, L"None"));
+			break;
+		}
+	}
+	else
+		return Error(ErrorType::NotDefined, line);
+	return NoError();
+}
+
+Error Program::getParameter(int size)
+{
+	if (size == -1)
+	{
+		do {
+			m_currentToken = nextToken();
+			Error e = term(1);
+			if (isError(e))
+				return e;
+			m_parameterStack.top().push_back(pop());
+		} while (m_currentToken.t_type == TokenType::COMMA);
+	}
+	else if (size == 0)
+	{
+		m_currentToken = nextToken();
+	}
+	else 
+	{
+		for (int i = 0; i < size; ++i)
+		{
+			m_currentToken = nextToken();
+			Error e = term(1);
+			if (isError(e))
+				return e;
+			m_parameterStack.top().push_back(pop());
+		}		
+	}
+	if (m_currentToken.t_type != TokenType::RPAREN)
+		return Error(ErrorType::ParameterError, line);
+	return NoError();
+}
+
+LiteralType Program::getFunctionType(const std::wstring& name)
+{
+	if (name == L"호줔ㅋ")
+		return LiteralType::VOID;
+	else if (name == L"유칼립퉄ㅋㅋ")
+		return LiteralType::STRING;
+	else if (name == L"라알?")
+		return LiteralType::NUMBER;
+	else if (name == L"콜라ㅋ?")
+		return LiteralType::STRING;
+}
+
 bool Program::isError(Error& e)
 {
 	return e.error_t != ErrorType::NoError;
 }
 
+bool Program::isOperator(TokenType t)
+{
+	switch (t)
+	{
+	case TokenType::PLUS:
+	case TokenType::MINUS:
+	case TokenType::MUTLI:
+	case TokenType::DIV:
+	case TokenType::ASSIGN:
+		return true;
+	default:
+		return false;
+	}
+}
 
 Literal Program::pop()
 {
 	Literal result = m_stack.top();
 	m_stack.pop();
 	return result;
-}
-
-void Program::show()
-{
-	for (int i = 0; i < MAX_VARIABLE_COUNTS; ++i)
-	{
-		if (variables->lt == LiteralType::NUMBER)
-			std::cout << variables[i].number << std::endl;
-		else
-			std::wcout << variables[i].str << std::endl;
-	}
 }

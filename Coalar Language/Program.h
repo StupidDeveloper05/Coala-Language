@@ -6,7 +6,8 @@
 enum class LiteralType
 {
 	NUMBER,
-	STRING
+	STRING,
+	VOID
 };
 
 struct Literal
@@ -28,8 +29,6 @@ public:
 	Error parsing();
 	bool successed() { return m_successed; }
 
-	void show();
-
 private:
 	Token nextToken();
 	Error statement();
@@ -40,7 +39,12 @@ private:
 	int opOrder(TokenType t);
 	Error operate(TokenType op);
 
+	Error processFunction();
+	Error getParameter(int size);
+	LiteralType getFunctionType(const std::wstring& name);
+
 	bool isError(Error& e);
+	bool isOperator(TokenType t);
 	Literal pop();
 
 private:
@@ -53,6 +57,9 @@ private:
 
 	// 연산 수행용 스택
 	std::stack<Literal> m_stack;
+
+	// 함수 매개 변수용 스택
+	std::stack<std::vector<Literal>> m_parameterStack;
 
 	// 변수 리스트 최대 512개
 	Literal variables[MAX_VARIABLE_COUNTS];

@@ -38,6 +38,9 @@ enum class ErrorType {
 	ParenError,
 	ZeroDivisionError,
 	InvalidType,
+	// Today
+	ParameterError,
+	ToIntTypeError,
 	NoError
 };
 
