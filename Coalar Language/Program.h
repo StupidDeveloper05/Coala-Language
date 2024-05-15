@@ -1,7 +1,7 @@
 #pragma once
 #include "token.h"
 #include <stack>
-#define MAX_VARIABLE_COUNTS 10
+#define MAX_VARIABLE_COUNTS 512
 
 enum class LiteralType
 {
